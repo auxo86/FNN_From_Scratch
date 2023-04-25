@@ -1,6 +1,6 @@
 # Chinese MNIST Dataset - FNN
 
-這個專案是基於 [Chinese MNIST Dataset](https://www.kaggle.com/robertyyz/chinese-mnist) 所建立的 FNN 神經網路，使用了 Cupy 和 NumPy 來加速計算，並且手動實作了 SGD 和 Adam optimizer 來訓練模型。該模型的目的是識別中文數字。
+這個專案是基於 [Chinese MNIST Dataset](https://www.kaggle.com/datasets/gpreda/chinese-mnist) 所建立的 FNN 神經網路，使用了 Cupy 和 NumPy 來加速計算，並且手動實作了 SGD 和 Adam optimizer 來訓練模型。該模型的目的是識別中文數字。
 
 ## 如何使用
 
