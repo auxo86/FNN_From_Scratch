@@ -11,7 +11,7 @@ pip install numpy
 pip install cupy-cudaXXX # 根據你的 CUDA 版本選擇
 ```
 
-2. 我其實已經幫大家下載好了，文件置於 ChineseMNIST 資料夾中。
+2. 請大家下載好了解壓縮然後置於 ChineseMNIST 資料夾中。
 
 3. 執行 `python3 main.py` 來開始訓練模型，執行以下指令：
 
