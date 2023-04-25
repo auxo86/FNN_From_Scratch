@@ -7,6 +7,7 @@ from facilities.classes.netDenseLayer import Dense
 from facilities.classes.netFNNSequential import netFNNSequential
 from facilities.classes.netOutputLayer import MultiClassOutputLayer
 from facilities.classes.optimizer import SGD, Adam
+from facilities.classes.AccuracyPlotter import AccuracyPlotter
 
 if __name__ == '__main__':
     # 資料集分成 training 和 validation 要使用的比例
@@ -26,6 +27,9 @@ if __name__ == '__main__':
         fMaxLearningRate = 0.9
     
     sDatasetDir = './ChineseMNIST'
+    
+    # 繪製折線圖
+    plotter = AccuracyPlotter('Epochs', 'Accuracy', iEpochs)
 
     # 讀資料
     naTrainImages, naTrainOneHotLabels, naTestImages, naTestOneHotLabels, dictLabelCat = GetImgAndOneHotEncodedLabel(sDatasetDir)
@@ -68,6 +72,9 @@ if __name__ == '__main__':
 
         # 一個 Epoch 中顯示 loss 有多少
         print(f'Epoch {iepoch}: {fnnModel.loss}, TrainAccuracy: {round(fnnModel.fTrainAccuracy*100, 3)}%, ValidateAccuracy: {round(fnnModel.fValidateAccuracy*100, 3)}%, learning rate: {fnnModel.fLearningRate}')
+        # 畫出精確度比較折線圖
+        plotter.update(fnnModel.fTrainAccuracy, fnnModel.fValidateAccuracy)
+        
         # 更新 learning rate
         fnnModel.fLearningRate = CalLearningRate(fnnModel.fValidateAccuracy, fMaxLearningRate)
         # print(f'fnnModel.layers[-1].W[0, 0], .b[0, 0]: {fnnModel.layers[-1].W[0, 0]}, {fnnModel.layers[-1].b[0, 0]}')
