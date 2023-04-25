@@ -1,11 +1,12 @@
-import numpy as np
+import cupy as cp
 
 
 class netFNNSequential:
     def __init__(self, iBatchSize, fMaxLearningRate, CalLossFunc):
         self.listTrueLabels = None
         self.listPredLabels = None
-        self.fAccuracy = None
+        self.fTrainAccuracy = None
+        self.fValidateAccuracy = None
         self.naTrueLabels = None
         self.boolIfTraining = None
         self.loss = None
@@ -40,11 +41,17 @@ class netFNNSequential:
         for layer in self.layers:
             layer.update(self.fLearningRate)
 
+
+    def resetAdam(self):
+        for layer in self.layers:
+            layer.resetAdam()
+
     def ComputeLoss(self, naLbls):
         # 計算 softmax 產生機率的 cross entropy loss.
         self.loss = self.calLossFunc(self.naOut, naLbls)  # 使用 CrossEntropy
 
     def training(self, naSampleTrain, naLabelTrain):
+        self.naTrueLabels = naLabelTrain
         self.forward(naSampleTrain, boolIfTraining=True)
         self.backward(naLabelTrain)
         self.update()
@@ -56,13 +63,15 @@ class netFNNSequential:
 
     def TransToListLabels(self, naX):
         # 將結果轉換為具體的分類標籤
-        return np.argmax(naX, axis=1)
+        return cp.argmax(naX, axis=1)
         
     def CalAccuracy(self):
         self.listPredLabels = self.TransToListLabels(self.naOut)
         self.listTrueLabels = self.TransToListLabels(self.naTrueLabels)
-        iSumCorrectPredictions = np.sum(self.listPredLabels == self.listTrueLabels)
-        self.fAccuracy = iSumCorrectPredictions/len(self.naTrueLabels)
+        iSumCorrectPredictions = cp.sum(self.listPredLabels == self.listTrueLabels)
+        naAccuracy = iSumCorrectPredictions/len(self.naTrueLabels)
+        fAccuracy = float(naAccuracy)
+        return fAccuracy
 
     def CalLearningRate(self, fAccuracy):
         fLearningRate = (1-fAccuracy)/3

@@ -1,11 +1,12 @@
 import os
 import pandas as pd
 import numpy as np
+import cupy as cp
 from PIL import Image
 from matplotlib import image
 
 height, width = 64, 64
-fResizeRatio = 0.5
+fResizeRatio = 1
 iNewH, iNewW = int(fResizeRatio * height), int(fResizeRatio * width)
 
 
@@ -29,15 +30,14 @@ def GetImgAndOneHotEncodedLabel(data_dir):
 
     # 真正存手寫影像檔案的 list
     naImages = np.zeros((iNumImgs, iNewH, iNewW))
-
     # 利用迴圈把所有影像檔案讀進來放到 naImages
-    for i, fImgFile in enumerate(slistImgFileNames):
-        sImgPath = os.path.join(f'{sImgDir}/', fImgFile)
-        rawImg = Image.open(sImgPath).resize((iNewH, iNewW), Image.ANTIALIAS)
-        rawImg.save(f'{sImgDir}/resized/{fImgFile}')
-        sResizedImgPath = f'{sImgDir}/resized/{fImgFile}'
+    for i, sImgFile in enumerate(slistImgFileNames):
+        sImgPath = os.path.join(f'{sImgDir}/', sImgFile)
+        # rawImg = Image.open(sImgPath).resize((iNewH, iNewW), Image.ANTIALIAS)
+        # rawImg.save(f'{sImgDir}/resized/{sImgFile}')
+        # sResizedImgPath = f'{sImgDir}/resized/{sImgFile}'
         # 利用 matplotlib 根據路徑讀入影像檔案塞到 element 中
-        img = image.imread(sResizedImgPath)
+        img = image.imread(sImgPath)
         naImages[i] = img
 
     # 將數據集拆分為訓練集和測試集
@@ -52,17 +52,22 @@ def GetImgAndOneHotEncodedLabel(data_dir):
     naTrainOneHotLabels, naTestOneHotLabels = tuple(
         map(lambda x: OnehotEncode(x, dictLabelCat), [naTrainLabels, naTestLabels])
     )
-
+    
+    naTrainImages = cp.asarray(naTrainImages)
+    naTestImages = cp.asarray(naTestImages)
+    naTrainOneHotLabels = cp.asarray(naTrainOneHotLabels)
+    naTestOneHotLabels = cp.asarray(naTestOneHotLabels)
+    
     return naTrainImages, naTrainOneHotLabels, naTestImages, naTestOneHotLabels, dictLabelCat
 
 
-def funcReshapeAndNomalization(naImgs: np.ndarray):
+def funcReshapeAndNomalization(naImgs: cp.ndarray):
     naImgs = naImgs.reshape(naImgs.shape[0], -1).astype('float32') / 255
     return naImgs
 
 
 def OnehotEncode(naLabels, dictLabelCat):
-    naOneHotLabels = np.zeros((len(naLabels), len(dictLabelCat)))
+    naOneHotLabels = cp.zeros((len(naLabels), len(dictLabelCat)))
     for i, lbl in enumerate(naLabels):
         naOneHotLabels[i, dictLabelCat[lbl]] = 1
     return naOneHotLabels
@@ -71,8 +76,19 @@ def OnehotEncode(naLabels, dictLabelCat):
 # ReLU 激活函數
 def relu(naX, derivative=False):
     if derivative:
-        return np.where(naX > 0, 1, 0)
-    return np.maximum(naX, 0)
+        return cp.where(naX > 0, 1, 0)
+    return cp.maximum(naX, 0)
+
+
+# 這是一個 leakyRelu 的實做
+def leaky_relu(x, alpha=0.01, derivative=False):
+    if derivative:
+        dx = cp.ones_like(x)
+        dx[x < 0] = alpha
+        return dx
+    return cp.maximum(alpha * x, x)
+
+
 
 # softmax 激活函数
 # softmax 函數的作用是將輸入向量轉換為一個概率分布，
@@ -91,9 +107,8 @@ def softmax(x, derivative=False):
         return p * (1 - p)
     else:
         # 计算 softmax 函数
-        exps = np.exp(x - np.max(x, axis=1, keepdims=True))
-        return exps / np.sum(exps, axis=1, keepdims=True)
-
+        exps = cp.exp(x - cp.max(x, axis=1, keepdims=True))
+        return exps / cp.sum(exps, axis=1, keepdims=True)
 
 
 # CrossEntropy 損失函數:
@@ -106,7 +121,7 @@ def CrossEntropy(naPred, naTrue):
     epsilon = 1e-7
 
     # 計算 cross entropy loss
-    loss = -1 / m * np.sum(naTrue * np.log(naPred + epsilon))
+    loss = -1 / m * cp.sum(naTrue * cp.log(naPred + epsilon))
 
     return loss
 
@@ -117,7 +132,7 @@ def CrossEntropy(naPred, naTrue):
 # 然後，通過比較每個元素和 dropout_ratio 的大小，來判斷是否將其設置為 0，這樣對應的神經元就被丟棄了。
 # 最後，為了保持輸入的期望值不變，我們將被保留下來的神經元的值除以 (1.0 - dropout_ratio)，這樣可以保持輸入數值的期望值不變。
 def dropout(x, dropout_ratio=0.5):
-    mask = np.random.rand(*x.shape) > dropout_ratio
+    mask = cp.random.rand(*x.shape) > dropout_ratio
     return mask * x / (1.0 - dropout_ratio)
 
 
@@ -130,8 +145,8 @@ def he_initialization(iNumNeuronsIn, iNumNeuronsOut):
     #     iNumNeuronsIn (int): 層中的輸入神經元數.
     #     iNumNeuronsOut (int): 層中的輸出神經元數.
     # Returns:
-    #     np.ndarray: 大小為（iNumNeuronsIn，iNumNeuronsOut）的數組，包含初始化的權重。
-    w = np.random.randn(iNumNeuronsIn, iNumNeuronsOut) * np.sqrt(2 / iNumNeuronsIn)
+    #     cp.ndarray: 大小為（iNumNeuronsIn，iNumNeuronsOut）的數組，包含初始化的權重。
+    w = cp.random.randn(iNumNeuronsIn, iNumNeuronsOut) * cp.sqrt(2 / iNumNeuronsIn)
     return w
 
 
@@ -143,11 +158,13 @@ def GetChunk(naSample, naLabel, iChunkSize):
     for i in range(0, len(naSample), iChunkSize):
         yield naSample[i:i + iChunkSize], naLabel[i:i + iChunkSize]
 
+
 def CalLearningRate(fAccuracy, fMaxLearningRate):
     # fLearningRate = ((1 - fAccuracy) / 5)**0.2
-    fLearningRate = 2 - np.exp(fAccuracy)*0.2
-    if fAccuracy > 0.9:
-        fLearningRate -= 0.1*fAccuracy
+    fLearningRate = 1.8 - cp.exp(fAccuracy) * 0.64 + 0.5*fAccuracy
+    if fAccuracy > 0.75:
+        fLearningRate -= 0.08 * fAccuracy
+        fLearningRate /= 3
     fLearningRate = min(fLearningRate, fMaxLearningRate)
     if fLearningRate <= 0:
         fLearningRate = 0.005

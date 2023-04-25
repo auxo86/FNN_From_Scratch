@@ -1,7 +1,8 @@
-import numpy as np
+import cupy as cp
 
 from facilities.StaticFuncs import softmax, CrossEntropy, he_initialization
 from facilities.classes.netDenseLayer import Dense
+from facilities.classes.optimizer import Adam
 
 
 # 這個輸出層在 forward 方法中使用了 softmax 函數將輸出轉換成概率分佈，
@@ -14,35 +15,31 @@ from facilities.classes.netDenseLayer import Dense
 # 在 backward 中，我們計算出損失函數的梯度再傳播。
 # 在更新權重和偏差時，我們使用輸出層的差異計算梯度，進行反向傳播。
 class MultiClassOutputLayer(Dense):
-    def __init__(self, iInputNeuronNum, iOutputNeuronNum, ActivationFunc=softmax):
+    def __init__(self, iInputNeuronNum, iOutputNeuronNum, ActivationFunc=softmax, Optimizer=Adam):
         super().__init__(iInputNeuronNum, iOutputNeuronNum)
         self.W = he_initialization(self.iInNeuronNum, self.iNeuronNum)
         # bias 只需要跟輸出維度一樣多就好
-        self.b = np.zeros((1, iOutputNeuronNum))
+        self.b = cp.zeros((1, iOutputNeuronNum))
         self.naOutput = None
         self.naResultP = None
         self.loss = None
         self.activation = ActivationFunc
+        self.optimizer = Optimizer()
 
     # 重寫 forward
     def forward(self, naIn, boolIfTraining=True):
         self.naInput = naIn
-        self.naOutput = np.dot(self.naInput, self.W) + self.b
+        self.naOutput = cp.dot(self.naInput, self.W) + self.b
         self.naResultP = self.activation(self.naOutput)  # 使用 softmax 激活函數
         return self.naResultP
 
     def backward(self, naTrueLabels):
-        delta = self.naResultP - naTrueLabels
+        naOrigDelta = self.naResultP - naTrueLabels
+        delta = self.activation(self.naOutput, derivative=True) * naOrigDelta
         iNumSamples = len(self.naOutput)
 
         # 更新權重和偏差
-        self.dW = np.dot(self.naInput.T, delta)/iNumSamples
-        self.db = np.sum(delta, axis=0)/iNumSamples
-        return np.dot(self.activation(self.naOutput, derivative=True) * delta, self.W.T)
-
-
-    def update(self, fLearningRate):
-        self.W -= fLearningRate * self.dW
-        self.b -= fLearningRate * self.db
-
+        self.dW = cp.dot(self.naInput.T, delta) / iNumSamples
+        self.db = cp.sum(delta, axis=0) / iNumSamples
+        return cp.dot(delta, self.W.T)
 

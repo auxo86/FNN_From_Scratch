@@ -1,5 +1,5 @@
 # 定義 DropoutLayer Layer
-import numpy as np
+import cupy as cp
 
 
 class DropoutLayer:
@@ -12,7 +12,7 @@ class DropoutLayer:
             # 產生 mask
             # *naTest.shape 將 tuple 展開為 naTest.shape[0], naTest.shape[1], ...
             # 回傳的 mask 是 bool 構成的 ndarray
-            self.dropoutMask = np.random.rand(*naIn.shape) > self.fDropoutRatio
+            self.dropoutMask = cp.random.rand(*naIn.shape) > self.fDropoutRatio
             # 為了符合期望值所以這裡要 / (1.0 - self.fDropoutRatio)
             return naIn * self.dropoutMask / (1.0 - self.fDropoutRatio)
         else:
@@ -25,4 +25,7 @@ class DropoutLayer:
 
     # 要實做 update 函數
     def update(self, fLearningRate):
+        pass
+
+    def resetAdam(self):
         pass
